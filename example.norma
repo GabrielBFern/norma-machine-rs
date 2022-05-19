@@ -1,0 +1,14 @@
+inc A 
+inc A 
+inc A 
+inc A 
+inc A 
+inc A  
+dec A
+dec B
+dec A
+ifz A (11,6)
+inc A (12)
+inc A
+inc A
+inc A

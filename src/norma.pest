@@ -1,0 +1,20 @@
+
+WHITESPACE = _{ " " | "\t" | "\r" }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+alpha = { 'a'..'z' | 'A'..'Z' }
+
+non_zero_digit = { '1'..'9' }
+digit = { '0'..'9' }
+
+register_identifier = @{ !digit ~ (alpha|digit)* }
+line_identifier = @{ non_zero_digit ~ (digit)* }
+
+statements = {inc|dec|ifz} 
+	inc = {"inc " ~ register_identifier ~ ("(" ~ line_identifier~")")? }
+	dec = {"dec " ~ register_identifier ~ ("(" ~ line_identifier~")")? }
+    ifz = {"ifz " ~ register_identifier ~ "(" ~ line_identifier ~ "," ~ line_identifier ~ ")"}
+
+stmt = _{ statements }
+	
+program = _{ SOI ~ "\n"* ~ (stmt ~ "\n"+) * ~ stmt? ~ EOI }
