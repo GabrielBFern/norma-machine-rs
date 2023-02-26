@@ -1,13 +1,20 @@
 [package]
-name = "parser"
+name = "norma_machine_rs"
 version = "0.1.0"
 edition = "2021"
+authors = ["Gabriel Barbosa Fernandes <fernandesbgabriel@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/GabrielBFern/norma-machine-rs"
+categories = ["mathematics", "science", "simulation"]
+description = """
+Open library for implementation Norma Machines.
+"""
+keywords = ["cross-platform", "math", "science", "simulation", "norma-machine"]
+exclude = [".github/*", ".gitignore"]
 
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 num-bigint = "0.4.3"
-num-traits = "0.2.14"
-pest = "2.1.3"
-pest_derive = "2.1.0"
+num-traits = "0.2.15"
+pest = "2.5.5"
+pest_derive = "2.5.5"
