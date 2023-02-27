@@ -14,7 +14,7 @@ struct NORMAParser;
 
 use std::{collections::HashMap, ops::Deref};
 
-mod error;
+pub mod error;
 
 #[derive(Debug)]
 pub enum ASTNorma {
