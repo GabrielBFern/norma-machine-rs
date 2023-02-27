@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 pub mod error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum NormaAST {
     Increment {
         register: String,
@@ -33,10 +33,19 @@ enum NormaAST {
     },
 }
 
+#[derive(Clone, Debug)]
 pub struct NormaProgram {
     stmts: Vec<NormaAST>,
 }
 
+#[derive(Clone, Debug)]
+pub struct Context {
+    inst: usize,
+    cursor: usize,
+    registers: HashMap<String, BigUint>,
+}
+
+#[derive(Clone, Debug)]
 pub struct NormaMachine {
     program: NormaProgram,
     ctx: Context,
@@ -177,13 +186,6 @@ impl NormaAST {
 }
 
 pub struct NORMAInterpreter;
-
-#[derive(Debug)]
-pub struct Context {
-    inst: usize,
-    cursor: usize,
-    registers: HashMap<String, BigUint>,
-}
 
 impl Context {
     fn new() -> Self {
