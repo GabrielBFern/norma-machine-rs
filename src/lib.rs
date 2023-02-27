@@ -12,12 +12,12 @@ use pest::Parser;
 #[grammar = "norma.pest"]
 struct NORMAParser;
 
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 pub mod error;
 
 #[derive(Debug)]
-pub enum ASTNorma {
+enum NormaAST {
     Increment {
         register: String,
         next_inst: Option<usize>,
@@ -34,7 +34,7 @@ pub enum ASTNorma {
 }
 
 pub struct NormaProgram {
-    stmts: Vec<ASTNorma>,
+    stmts: Vec<NormaAST>,
 }
 
 pub struct NormaMachine {
@@ -43,7 +43,7 @@ pub struct NormaMachine {
 }
 
 impl NormaProgram {
-    fn new(stmts: Vec<ASTNorma>) -> NormaProgram {
+    fn new(stmts: Vec<NormaAST>) -> NormaProgram {
         NormaProgram { stmts }
     }
 
@@ -55,19 +55,11 @@ impl NormaProgram {
         let pairs = NORMAParser::parse(Rule::program, source)?;
         for pair in pairs {
             if let Rule::statements = pair.as_rule() {
-                stmts.push(ASTNorma::build_ast_from_statements(pair));
+                stmts.push(NormaAST::build_ast_from_statements(pair));
             }
         }
 
         Ok(Self::new(stmts))
-    }
-}
-
-impl Deref for NormaProgram {
-    type Target = Vec<ASTNorma>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.stmts
     }
 }
 
@@ -86,7 +78,7 @@ impl NormaMachine {
 
     pub fn run_bound(&mut self) -> Option<()> {
         let instruct = self.ctx.get_cursor();
-        let stmt = self.program.get(instruct);
+        let stmt = self.program.stmts.get(instruct);
         let r = match stmt {
             Some(stmt) => {
                 stmt.execute(&mut self.ctx);
@@ -97,9 +89,13 @@ impl NormaMachine {
         self.ctx.inst += 1;
         r
     }
+
+    pub fn get_context(&self) -> &Context {
+        &self.ctx
+    }
 }
 
-impl ASTNorma {
+impl NormaAST {
     fn build_ast_from_statements(pair: pest::iterators::Pair<Rule>) -> Self {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
@@ -144,7 +140,7 @@ impl ASTNorma {
 
     fn execute(&self, context: &mut Context) {
         match self {
-            ASTNorma::Increment {
+            NormaAST::Increment {
                 register,
                 next_inst,
             } => {
@@ -154,7 +150,7 @@ impl ASTNorma {
                     None => context.cursor += 1,
                 }
             }
-            ASTNorma::Decrement {
+            NormaAST::Decrement {
                 register,
                 next_inst,
             } => {
@@ -164,7 +160,7 @@ impl ASTNorma {
                     None => context.cursor += 1,
                 }
             }
-            ASTNorma::IfZeros {
+            NormaAST::IfZeros {
                 register,
                 true_inst,
                 false_inst,
@@ -190,7 +186,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             inst: 0,
             cursor: 0,
