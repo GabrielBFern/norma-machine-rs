@@ -1,8 +1,8 @@
 extern crate pest;
-use pest::error::Error;
 #[macro_use]
 extern crate pest_derive;
 
+use error::NormaMachineError;
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
@@ -13,6 +13,8 @@ use pest::Parser;
 struct NORMAParser;
 
 use std::{collections::HashMap, ops::Deref};
+
+mod error;
 
 #[derive(Debug)]
 pub enum ASTNorma {
@@ -45,7 +47,10 @@ impl NormaProgram {
         NormaProgram { stmts }
     }
 
-    pub fn parse(source: &str) -> Result<NormaProgram, Box<Error<Rule>>> {
+    pub fn parse(source: &str) -> Result<NormaProgram, NormaMachineError> {
+        if source.trim().is_empty() {
+            return Err(NormaMachineError::EmptySource);
+        }
         let mut stmts = Vec::new();
         let pairs = NORMAParser::parse(Rule::program, source)?;
         for pair in pairs {
@@ -239,9 +244,10 @@ impl Default for Context {
 
 #[cfg(test)]
 mod tests {
+
     use num_traits::ToPrimitive;
 
-    use crate::{NormaMachine, NormaProgram};
+    use crate::{error::NormaMachineError, NormaMachine, NormaProgram};
 
     #[test]
     fn test_basic_inc() {
@@ -265,6 +271,21 @@ mod tests {
         assert_eq!(0, vm.ctx.get_register_read_only("A").to_isize().unwrap());
         assert_eq!(1, vm.ctx.get_register_read_only("B").to_isize().unwrap());
         assert_eq!(2, vm.ctx.get_register_read_only("C").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_basic_error() {
+        let error = NormaProgram::parse("example").err().unwrap();
+        match error {
+            NormaMachineError::Parse(_) => {}
+            _ => unreachable!(),
+        };
+
+        let error = NormaProgram::parse("").err().unwrap();
+        match error {
+            NormaMachineError::EmptySource => {}
+            _ => unreachable!(),
+        };
     }
 
     fn parse_and_run(source: &str) -> NormaMachine {
