@@ -277,6 +277,26 @@ mod tests {
         assert_eq!(2, vm.ctx.get_register_read_only("C").to_isize().unwrap());
     }
 
+
+    #[test]
+    fn test_goto_after() {
+        let vm = parse_and_run("inc A (10)\ninc A");
+        assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_basic_inc_with_goto() {
+        let vm = parse_and_run("inc A (3)\ninc A");
+        assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_basic_dec_with_goto() {
+        let vm = parse_and_run("inc A \ninc A\ndec A (5)\n dec A");
+        assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+    }
+
+
     #[test]
     fn test_basic_error() {
         let error = NormaProgram::parse("example").err().unwrap();
