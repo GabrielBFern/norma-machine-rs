@@ -12,12 +12,12 @@ use pest::Parser;
 #[grammar = "norma.pest"]
 struct NORMAParser;
 
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
-mod error;
+pub mod error;
 
-#[derive(Debug)]
-pub enum ASTNorma {
+#[derive(Debug, Clone)]
+enum NormaAST {
     Increment {
         register: String,
         next_inst: Option<usize>,
@@ -33,17 +33,26 @@ pub enum ASTNorma {
     },
 }
 
+#[derive(Clone, Debug)]
 pub struct NormaProgram {
-    stmts: Vec<ASTNorma>,
+    stmts: Vec<NormaAST>,
 }
 
+#[derive(Clone, Debug)]
+pub struct Context {
+    inst: usize,
+    cursor: usize,
+    registers: HashMap<String, BigUint>,
+}
+
+#[derive(Clone, Debug)]
 pub struct NormaMachine {
     program: NormaProgram,
     ctx: Context,
 }
 
 impl NormaProgram {
-    fn new(stmts: Vec<ASTNorma>) -> NormaProgram {
+    fn new(stmts: Vec<NormaAST>) -> NormaProgram {
         NormaProgram { stmts }
     }
 
@@ -55,19 +64,11 @@ impl NormaProgram {
         let pairs = NORMAParser::parse(Rule::program, source)?;
         for pair in pairs {
             if let Rule::statements = pair.as_rule() {
-                stmts.push(ASTNorma::build_ast_from_statements(pair));
+                stmts.push(NormaAST::build_ast_from_statements(pair));
             }
         }
 
         Ok(Self::new(stmts))
-    }
-}
-
-impl Deref for NormaProgram {
-    type Target = Vec<ASTNorma>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.stmts
     }
 }
 
@@ -86,7 +87,7 @@ impl NormaMachine {
 
     pub fn run_bound(&mut self) -> Option<()> {
         let instruct = self.ctx.get_cursor();
-        let stmt = self.program.get(instruct);
+        let stmt = self.program.stmts.get(instruct);
         let r = match stmt {
             Some(stmt) => {
                 stmt.execute(&mut self.ctx);
@@ -97,16 +98,23 @@ impl NormaMachine {
         self.ctx.inst += 1;
         r
     }
+
+    pub fn get_context(&self) -> &Context {
+        &self.ctx
+    }
 }
 
-impl ASTNorma {
+impl NormaAST {
     fn build_ast_from_statements(pair: pest::iterators::Pair<Rule>) -> Self {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
             Rule::inc => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
-                let next_inst = pair.next().map(|inst| inst.as_str().parse().unwrap());
+                let next_inst = pair
+                    .next()
+                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|i: usize| i - 1);
                 Self::Increment {
                     register,
                     next_inst,
@@ -115,7 +123,10 @@ impl ASTNorma {
             Rule::dec => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
-                let next_inst = pair.next().map(|inst| inst.as_str().parse().unwrap());
+                let next_inst = pair
+                    .next()
+                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|i: usize| i - 1);
                 Self::Decrement {
                     register,
                     next_inst,
@@ -144,7 +155,7 @@ impl ASTNorma {
 
     fn execute(&self, context: &mut Context) {
         match self {
-            ASTNorma::Increment {
+            NormaAST::Increment {
                 register,
                 next_inst,
             } => {
@@ -154,7 +165,7 @@ impl ASTNorma {
                     None => context.cursor += 1,
                 }
             }
-            ASTNorma::Decrement {
+            NormaAST::Decrement {
                 register,
                 next_inst,
             } => {
@@ -164,7 +175,7 @@ impl ASTNorma {
                     None => context.cursor += 1,
                 }
             }
-            ASTNorma::IfZeros {
+            NormaAST::IfZeros {
                 register,
                 true_inst,
                 false_inst,
@@ -182,15 +193,8 @@ impl ASTNorma {
 
 pub struct NORMAInterpreter;
 
-#[derive(Debug)]
-pub struct Context {
-    inst: usize,
-    cursor: usize,
-    registers: HashMap<String, BigUint>,
-}
-
 impl Context {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             inst: 0,
             cursor: 0,
@@ -272,6 +276,26 @@ mod tests {
         assert_eq!(1, vm.ctx.get_register_read_only("B").to_isize().unwrap());
         assert_eq!(2, vm.ctx.get_register_read_only("C").to_isize().unwrap());
     }
+
+
+    #[test]
+    fn test_goto_after() {
+        let vm = parse_and_run("inc A (10)\ninc A");
+        assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_basic_inc_with_goto() {
+        let vm = parse_and_run("inc A (3)\ninc A");
+        assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_basic_dec_with_goto() {
+        let vm = parse_and_run("inc A \ninc A\ndec A (5)\n dec A");
+        assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+    }
+
 
     #[test]
     fn test_basic_error() {
