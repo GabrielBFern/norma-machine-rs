@@ -111,7 +111,10 @@ impl NormaAST {
             Rule::inc => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
-                let next_inst = pair.next().map(|inst| inst.as_str().parse().unwrap());
+                let next_inst = pair
+                    .next()
+                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|i: usize| i - 1);
                 Self::Increment {
                     register,
                     next_inst,
@@ -120,7 +123,10 @@ impl NormaAST {
             Rule::dec => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
-                let next_inst = pair.next().map(|inst| inst.as_str().parse().unwrap());
+                let next_inst = pair
+                    .next()
+                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|i: usize| i - 1);
                 Self::Decrement {
                     register,
                     next_inst,
