@@ -3,8 +3,8 @@ extern crate pest;
 extern crate pest_derive;
 
 use error::NormaMachineError;
-use num_bigint::BigUint;
-use num_traits::{One, Zero};
+use num::BigUint;
+use num::{One, Zero};
 
 use pest::Parser;
 
@@ -294,8 +294,8 @@ impl Default for Context {
 #[cfg(test)]
 mod tests {
 
-    use num_bigint::BigUint;
-    use num_traits::{FromPrimitive, ToPrimitive};
+    use num::BigUint;
+    use num::{FromPrimitive, ToPrimitive};
 
     use crate::{error::NormaMachineError, Context, NormaMachine, NormaProgram};
 
