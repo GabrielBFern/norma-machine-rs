@@ -277,7 +277,6 @@ mod tests {
         assert_eq!(2, vm.ctx.get_register_read_only("C").to_isize().unwrap());
     }
 
-
     #[test]
     fn test_goto_after() {
         let vm = parse_and_run("inc A (10)\ninc A");
@@ -296,7 +295,6 @@ mod tests {
         assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
     }
 
-
     #[test]
     fn test_basic_error() {
         let error = NormaProgram::parse("example").err().unwrap();
@@ -310,6 +308,20 @@ mod tests {
             NormaMachineError::EmptySource => {}
             _ => unreachable!(),
         };
+    }
+
+    #[test]
+    fn test_comments() {
+        let vm = parse_and_run("//comment");
+        assert_eq!(0, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+        let vm = parse_and_run("inc a//comment");
+        assert_eq!(1, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+        let vm = parse_and_run("inc a/* block\n*/");
+        assert_eq!(1, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+        let vm = parse_and_run("inc /* block */a");
+        assert_eq!(1, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+        let vm = parse_and_run("/* block */inc a");
+        assert_eq!(1, vm.ctx.get_register_read_only("a").to_isize().unwrap());
     }
 
     fn parse_and_run(source: &str) -> NormaMachine {
