@@ -1,6 +1,8 @@
-
 WHITESPACE = _{ " " | "\t" | "\r" }
-COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
+
+blank_line = {"\n"}
+
 
 alpha = { 'a'..'z' | 'A'..'Z' }
 
@@ -10,11 +12,13 @@ digit = { '0'..'9' }
 register_identifier = @{ !digit ~ (alpha|digit)* }
 line_identifier = @{ non_zero_digit ~ (digit)* }
 
-statements = {inc|dec|ifz} 
+statements = {inc|dec|ifz|ifnz|blank_line} 
 	inc = {"inc " ~ register_identifier ~ ("(" ~ line_identifier~")")? }
 	dec = {"dec " ~ register_identifier ~ ("(" ~ line_identifier~")")? }
     ifz = {"ifz " ~ register_identifier ~ "(" ~ line_identifier ~ "," ~ line_identifier ~ ")"}
+    ifnz = {"ifnz " ~ register_identifier ~ "(" ~ line_identifier ~ "," ~ line_identifier ~ ")"}
+     
 
-stmt = _{ statements }
-	
-program = _{ SOI ~ "\n"* ~ (stmt ~ "\n"+) * ~ stmt? ~ EOI }
+stmt = _{  statements  ~"\n"? }
+    
+program = _{ SOI  ~ (stmt +) * ~ stmt? ~ EOI }

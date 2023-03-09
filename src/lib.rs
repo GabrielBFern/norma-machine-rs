@@ -31,6 +31,12 @@ enum NormaAST {
         true_inst: usize,
         false_inst: usize,
     },
+    IfNotZeros {
+        register: String,
+        true_inst: usize,
+        false_inst: usize,
+    },
+    NoOp,
 }
 
 #[derive(Clone, Debug)]
@@ -149,6 +155,24 @@ impl NormaAST {
                     false_inst: false_inst - 1,
                 }
             }
+            Rule::ifnz => {
+                let mut pair = pair.into_inner();
+                let register = pair.next().unwrap().as_str().into();
+                let true_inst: usize = pair
+                    .next()
+                    .map(|inst| inst.as_str().parse().unwrap())
+                    .unwrap();
+                let false_inst: usize = pair
+                    .next()
+                    .map(|inst| inst.as_str().parse().unwrap())
+                    .unwrap();
+                Self::IfNotZeros {
+                    register,
+                    true_inst: true_inst - 1,
+                    false_inst: false_inst - 1,
+                }
+            }
+            Rule::blank_line => Self::NoOp,
             unknown_expr => panic!("Unexpected statements: {unknown_expr:?}"),
         }
     }
@@ -187,6 +211,19 @@ impl NormaAST {
                 };
                 context.cursor = next;
             }
+            NormaAST::IfNotZeros {
+                register,
+                true_inst,
+                false_inst,
+            } => {
+                let next = if *context.get_register(register) != BigUint::zero() {
+                    *true_inst
+                } else {
+                    *false_inst
+                };
+                context.cursor = next;
+            }
+            NormaAST::NoOp => context.cursor += 1,
         }
     }
 }
@@ -277,6 +314,17 @@ mod tests {
         assert_eq!(2, vm.ctx.get_register_read_only("C").to_isize().unwrap());
     }
 
+    #[test]
+    fn test_basic_ifnz() {
+        let vm = parse_and_run("inc A\nifnz A (3,4)\ninc B\ninc C");
+        assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+        assert_eq!(1, vm.ctx.get_register_read_only("B").to_isize().unwrap());
+        assert_eq!(1, vm.ctx.get_register_read_only("C").to_isize().unwrap());
+        let vm = parse_and_run("inc C\nifnz A (3,4)\ninc B\ninc C");
+        assert_eq!(0, vm.ctx.get_register_read_only("A").to_isize().unwrap());
+        assert_eq!(0, vm.ctx.get_register_read_only("B").to_isize().unwrap());
+        assert_eq!(2, vm.ctx.get_register_read_only("C").to_isize().unwrap());
+    }
 
     #[test]
     fn test_goto_after() {
@@ -296,7 +344,6 @@ mod tests {
         assert_eq!(1, vm.ctx.get_register_read_only("A").to_isize().unwrap());
     }
 
-
     #[test]
     fn test_basic_error() {
         let error = NormaProgram::parse("example").err().unwrap();
@@ -310,6 +357,20 @@ mod tests {
             NormaMachineError::EmptySource => {}
             _ => unreachable!(),
         };
+    }
+
+    #[test]
+    fn test_comments() {
+        let vm = parse_and_run("//comment");
+        assert_eq!(0, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+        let vm = parse_and_run("inc a//comment");
+        assert_eq!(1, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_comments_line_count() {
+        let vm = parse_and_run("inc a (3) \n//comment\ndec a");
+        assert_eq!(0, vm.ctx.get_register_read_only("a").to_isize().unwrap());
     }
 
     fn parse_and_run(source: &str) -> NormaMachine {
