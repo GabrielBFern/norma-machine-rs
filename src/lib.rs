@@ -239,6 +239,14 @@ impl Context {
         }
     }
 
+    pub fn from_registers(registers: impl Into<HashMap<String, BigUint>>) -> Self {
+        Self {
+            inst: 0,
+            cursor: 0,
+            registers: registers.into(),
+        }
+    }
+
     fn inc(&mut self, register: &str) {
         let register = self.get_register(register);
         *register += BigUint::one();
@@ -286,9 +294,10 @@ impl Default for Context {
 #[cfg(test)]
 mod tests {
 
-    use num_traits::ToPrimitive;
+    use num_bigint::BigUint;
+    use num_traits::{FromPrimitive, ToPrimitive};
 
-    use crate::{error::NormaMachineError, NormaMachine, NormaProgram};
+    use crate::{error::NormaMachineError, Context, NormaMachine, NormaProgram};
 
     #[test]
     fn test_basic_inc() {
@@ -371,6 +380,19 @@ mod tests {
     fn test_comments_line_count() {
         let vm = parse_and_run("inc a (3) \n//comment\ndec a");
         assert_eq!(0, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_custom_context() {
+        let source = "inc A\ninc A\n inc A";
+        let prg = NormaProgram::parse(source).unwrap();
+        let ctx = Context::from_registers([("A".to_owned(), BigUint::from_usize(10000).unwrap())]);
+        let mut vm = NormaMachine::from_context(prg, ctx);
+        vm.run();
+        assert_eq!(
+            10003,
+            vm.ctx.get_register_read_only("A").to_isize().unwrap()
+        );
     }
 
     fn parse_and_run(source: &str) -> NormaMachine {
