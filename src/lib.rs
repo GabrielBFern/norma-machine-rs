@@ -68,9 +68,22 @@ impl NormaProgram {
         }
         let mut stmts = Vec::new();
         let pairs = NORMAParser::parse(Rule::program, source)?;
+
+        let mut roseta_table = HashMap::<String, usize>::new();
+        let mut line = 0usize;
+        for pair in pairs.clone() {
+            if pair.as_rule() == Rule::line_label {
+                let name = pair.as_str();
+                roseta_table.insert(name.into(), line);
+            } else {
+                line += 1;
+            }
+        }
+
         for pair in pairs {
-            if let Rule::statements = pair.as_rule() {
-                stmts.push(NormaAST::build_ast_from_statements(pair));
+            let rule = pair.as_rule();
+            if rule != Rule::EOI && rule != Rule::line_label {
+                stmts.push(NormaAST::build_ast_from_statements(pair, &roseta_table)?);
             }
         }
 
@@ -111,68 +124,74 @@ impl NormaMachine {
 }
 
 impl NormaAST {
-    fn build_ast_from_statements(pair: pest::iterators::Pair<Rule>) -> Self {
-        let pair = pair.into_inner().next().unwrap();
+    fn build_ast_from_statements(
+        pair: pest::iterators::Pair<Rule>,
+        roseta_table_jump: &HashMap<String, usize>,
+    ) -> Result<Self, NormaMachineError> {
         match pair.as_rule() {
             Rule::inc => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
                 let next_inst = pair
                     .next()
-                    .map(|inst| inst.as_str().parse().unwrap())
-                    .map(|i: usize| i - 1);
-                Self::Increment {
+                    .map(|inst| NormaAST::parse_jump_inst(inst.as_str(), roseta_table_jump))
+                    .transpose()?;
+                Ok(Self::Increment {
                     register,
                     next_inst,
-                }
+                })
             }
             Rule::dec => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
                 let next_inst = pair
                     .next()
-                    .map(|inst| inst.as_str().parse().unwrap())
-                    .map(|i: usize| i - 1);
-                Self::Decrement {
+                    .map(|inst| NormaAST::parse_jump_inst(inst.as_str(), roseta_table_jump))
+                    .transpose()?;
+                Ok(Self::Decrement {
                     register,
                     next_inst,
-                }
+                })
             }
             Rule::ifz => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
                 let true_inst: usize = pair
                     .next()
-                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|inst| NormaAST::parse_jump_inst(inst.as_str(), roseta_table_jump))
+                    .transpose()?
                     .unwrap();
                 let false_inst: usize = pair
                     .next()
-                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|inst| NormaAST::parse_jump_inst(inst.as_str(), roseta_table_jump))
+                    .transpose()?
                     .unwrap();
-                Self::IfZeros {
+                Ok(Self::IfZeros {
                     register,
-                    true_inst: true_inst - 1,
-                    false_inst: false_inst - 1,
-                }
+                    true_inst,
+                    false_inst,
+                })
             }
             Rule::ifnz => {
                 let mut pair = pair.into_inner();
                 let register = pair.next().unwrap().as_str().into();
                 let true_inst: usize = pair
                     .next()
-                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|inst| NormaAST::parse_jump_inst(inst.as_str(), roseta_table_jump))
+                    .transpose()?
                     .unwrap();
                 let false_inst: usize = pair
                     .next()
-                    .map(|inst| inst.as_str().parse().unwrap())
+                    .map(|inst| NormaAST::parse_jump_inst(inst.as_str(), roseta_table_jump))
+                    .transpose()?
                     .unwrap();
-                Self::IfNotZeros {
+                Ok(Self::IfNotZeros {
                     register,
-                    true_inst: true_inst - 1,
-                    false_inst: false_inst - 1,
-                }
+                    true_inst,
+                    false_inst,
+                })
             }
-            Rule::blank_line => Self::NoOp,
+            Rule::blank_line => Ok(Self::NoOp),
             unknown_expr => panic!("Unexpected statements: {unknown_expr:?}"),
         }
     }
@@ -224,6 +243,21 @@ impl NormaAST {
                 context.cursor = next;
             }
             NormaAST::NoOp => context.cursor += 1,
+        }
+    }
+
+    fn parse_jump_inst(
+        jump: &str,
+        roseta_table_jump: &HashMap<String, usize>,
+    ) -> Result<usize, NormaMachineError> {
+        let line = jump.parse::<usize>();
+        if let Ok(line) = line {
+            Ok(line - 1)
+        } else {
+            roseta_table_jump
+                .get(jump)
+                .map(usize::to_owned)
+                .ok_or(NormaMachineError::InvalidLabel(jump.into()))
         }
     }
 }
@@ -366,6 +400,12 @@ mod tests {
             NormaMachineError::EmptySource => {}
             _ => unreachable!(),
         };
+
+        let error = NormaProgram::parse("inc a (invalid)").err().unwrap();
+        match error {
+            NormaMachineError::InvalidLabel(x) if x == "invalid" => {}
+            _ => unreachable!(),
+        };
     }
 
     #[test]
@@ -393,6 +433,26 @@ mod tests {
             10003,
             vm.ctx.get_register_read_only("A").to_isize().unwrap()
         );
+    }
+
+    #[test]
+    fn test_infinite_loop() {
+        let prg = NormaProgram::parse("start:inc a (start)").unwrap();
+        let mut vm = NormaMachine::new(prg);
+        for _ in 0..1000 {
+            vm.run_bound();
+        }
+        assert_eq!(1000, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+    }
+
+    #[test]
+    fn test_labels() {
+        let vm = parse_and_run("label:\n");
+        assert_eq!(0, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+        let vm = parse_and_run("start:inc a (end)\nskiped:inc a\nend:");
+        assert_eq!(1, vm.ctx.get_register_read_only("a").to_isize().unwrap());
+        let vm = parse_and_run("start:inc a (end)\nskiped:inc a\n    end : ");
+        assert_eq!(1, vm.ctx.get_register_read_only("a").to_isize().unwrap());
     }
 
     fn parse_and_run(source: &str) -> NormaMachine {

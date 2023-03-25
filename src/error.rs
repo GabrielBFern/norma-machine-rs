@@ -7,6 +7,8 @@ pub enum NormaMachineError {
     EmptySource,
     #[error(transparent)]
     Parse(#[from] Box<pest::error::Error<Rule>>),
+    #[error("The label `{0}` is not defined")]
+    InvalidLabel(String),
 }
 
 // Add manual boxing convert
