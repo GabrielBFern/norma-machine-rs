@@ -16,5 +16,5 @@ exclude = [".github/*", ".gitignore"]
 [dependencies]
 num = "0.4.0"
 pest = "2.5.5"
-pest_derive = "2.5.5"
+pest_derive = "2.7.8"
 thiserror = "1.0.39"
